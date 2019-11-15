@@ -21,7 +21,9 @@ var firebaseConfig = {
 class LoginScreen extends React.Component {
   constructor(props)  {
     super(props);
-    firebase.initializeApp(firebaseConfig);
+    if (firebase.apps.length == 0) {
+      firebase.initializeApp(firebaseConfig);
+    }
     const db = firebase.firestore(); 
     this.usersRef = db.collection('users');
     this.state = {
@@ -31,6 +33,44 @@ class LoginScreen extends React.Component {
     }
   }
 
+  handleLogin = () => {
+    let username = this.state.usernameText;
+    this.usersRef.where('username', '==', username).get().then(querySnapshot => {
+      if (querySnapshot.empty) {
+        this.setState({errorMessage: 'no such user'});
+      } else {
+        let user = querySnapshot.docs[0].data();
+        user.key = querySnapshot.docs[0].id;
+        if (user.password === this.state.passwordText) {
+          this.props.navigation.navigate('Home', {mode: 'returning', user: user});
+        } else {
+          this.setState({errorMessage: 'wrong password'});
+        }
+      }
+    });
+  }
+
+  handleCreateAccount = () => {
+    let username = this.state.usernameText;
+    this.usersRef.where('username', '==', username).get().then(queryRef => {
+      if (queryRef.empty) {
+        let newUser = {
+          username: username, 
+          password: this.state.passwordText
+        };
+        this.usersRef.add(newUser).then(docRef => {
+          newUser.key = docRef.id;
+          this.props.navigation.navigate('Home', {mode: 'new', user: newUser});
+          this.setState({      
+            errorMessage: '',
+            usernameText: '',
+            passwordText: ''})
+        });
+      } else {
+        this.setState({errorMessage: 'user already exists'});
+      }
+    });
+  }
 
   render() {
     return (
@@ -64,12 +104,12 @@ class LoginScreen extends React.Component {
           <Button
             title="Login"
             containerStyle={styles.buttonContainer}
-            onPress={() => this.props.navigation.navigate('Home', {mode: 'returning'})}
+            onPress={this.handleLogin}
           />
           <Button
             title="Create Account"
             containerStyle={styles.buttonContainer}
-            onPress={() => this.props.navigation.navigate('Home', {mode: 'new'})}
+            onPress={this.handleCreateAccount}
           />
         </View>
       </KeyboardAvoidingView>
@@ -80,20 +120,24 @@ class LoginScreen extends React.Component {
 class HomeScreen extends React.Component{
   constructor(props) {
     super(props);
+    let currentUser = this.props.navigation.getParam('user');
     let mode = this.props.navigation.getParam('mode');
     let welcomeMessage = 'Welcome, ';
     if (mode === 'returning') {
       welcomeMessage = 'Welcome back, ';
     }
+    console.log('currentUser', currentUser);
     this.state = {
-      welcomeMessage: welcomeMessage,
+      currentUser: currentUser,
+      welcomeMessage: welcomeMessage
     }
   }
   render() {
     return (
       <KeyboardAvoidingView behavior='padding' style={styles.container}>
         <View style={styles.headerContainer}>
-          <Text>{this.state.welcomeMessage}Stranger!</Text>
+          <Text>{this.state.welcomeMessage}{this.state.currentUser.username}</Text>
+          <Text>user id: {this.state.currentUser.key}</Text>
         </View>
       </KeyboardAvoidingView>
     );
